@@ -1,0 +1,58 @@
+﻿CREATE PROCEDURE StokEkstresi --SP isim verdık
+(
+--parametre tanımladık
+    @MalKodu VARCHAR(50),
+    @BaslangicTarihi DATE,
+    @BitisTarihi DATE
+)
+AS
+BEGIN
+-- Stok Ekstresi saklı prosedürü oluşturuluyor.
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY STI.Tarih) AS SiraNo,
+		-- SiraNo: Sonuçları sıralayan numara.
+        CASE 
+            WHEN STI.IslemTur = 0 THEN 'Giriş'
+            WHEN STI.IslemTur = 1 THEN 'Çıkış'
+            ELSE ''
+        END AS IslemTur,
+        -- IslemTur: STI tablosundaki IslemTur değerine göre 0 ise "Giriş" veya 1 ise "Çıkış" yazan bir alan.
+        STI.EvrakNo,
+		-- EvrakNo: STI tablosundaki EvrakNo alanı.
+        CONVERT(VARCHAR(15), CAST(STI.Tarih - 2 AS datetime), 104) AS Tarih,
+		-- Tarih: STI tablosundaki Tarih alanını,sanırım Almanya tarih formatına dönüştürüyor olabilir!!!.
+        CASE 
+            WHEN STI.IslemTur = 0 THEN STI.Miktar
+            ELSE 0
+        END AS GirisMiktar,
+		-- GirisMiktar: Giriş işlemleri için STI tablosundaki Miktar değeri (değilse 0).
+        CASE 
+            WHEN STI.IslemTur = 1 THEN STI.Miktar
+            ELSE 0
+        END AS CikisMiktar,
+		 -- CikisMiktar: Çıkış işlemleri için STI tablosundaki Miktar değeri (değilse 0).
+        SUM(
+            CASE 
+                WHEN STI.IslemTur = 0 THEN STI.Miktar
+                WHEN STI.IslemTur = 1 THEN -STI.Miktar
+                ELSE 0
+            END
+        ) OVER (ORDER BY STI.Tarih) AS Stok
+		  -- Stok: Giriş ve çıkış işlemlerine göre hesaplanan stok miktarını tutan alan.
+    FROM
+        STI AS STI
+		 -- normalde STI tablosundan veriler çekiliyor olması lazım.
+    WHERE
+        STI.MalKodu = @MalKodu
+        AND STI.Tarih BETWEEN @BaslangicTarihi AND @BitisTarihi
+		-- Belirtilen MalKodu'na ve tarih aralığına sahip kayıtları seçiyoruz.
+    ORDER BY
+        STI.Tarih;
+		 -- Sonuçlar Tarih sütununa göre sıralanıyor.
+END
+
+-- oluşturulan parametreli SP yi çağırıyoruz
+EXEC StokEkstresi
+    @MalKodu = '10086 SİEMENS',
+    @BaslangicTarihi = '2012-01-01',
+    @BitisTarihi = '2023-12-31';
